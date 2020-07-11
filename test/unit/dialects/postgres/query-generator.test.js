@@ -2,7 +2,7 @@
 
 const chai = require('chai'),
   expect = chai.expect,
-  Op = require('../../../../lib/operators'),
+  { Op } = require('../../../../lib/operators'),
   QueryGenerator = require('../../../../lib/dialects/postgres/query-generator'),
   Support = require('../../support'),
   dialect = Support.getTestDialect(),

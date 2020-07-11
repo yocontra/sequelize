@@ -1,78 +1,65 @@
-const DataTypes = require('./data-types');
-const SqlString = require('./sql-string');
-const _ = require('lodash');
-const baseIsNative = require('lodash/_baseIsNative');
-const uuidv1 = require('uuid').v1;
-const uuidv4 = require('uuid').v4;
-const operators = require('./operators');
-const operatorsSet = new Set(Object.values(operators));
+import * as DataTypes from './data-types';
+import { formatNamedParameters, format as sqlFormat } from './sql-string';
+import { mergeWith, isPlainObject, isFunction, forOwn, cloneDeepWith, get, forIn, isObject, isEmpty } from 'lodash';
 
-let inflection = require('inflection');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const baseIsNative: (val: unknown) => boolean = require('lodash/_baseIsNative');
+import { v1 as uuidv1, v4 as uuidv4 } from 'uuid';
+import { Op } from './operators';
 
-exports.classToInvokable = require('./utils/class-to-invokable').classToInvokable;
-exports.joinSQLFragments = require('./utils/join-sql-fragments').joinSQLFragments;
+const operatorsSet = new Set(Object.values(Op));
 
-function useInflection(_inflection) {
+import * as Inflection from 'inflection';
+
+export { classToInvokable } from './utils/class-to-invokable';
+export { joinSQLFragments } from './utils/join-sql-fragments';
+export { formatNamedParameters };
+
+export let inflection = Inflection;
+export function useInflection(_inflection: typeof Inflection): void {
   inflection = _inflection;
 }
-exports.useInflection = useInflection;
 
-function camelizeIf(str, condition) {
-  let result = str;
-
+export function underscoredIf(str: string, condition: boolean): string {
   if (condition) {
-    result = camelize(str);
+    return underscore(str);
   }
 
-  return result;
+  return str;
 }
-exports.camelizeIf = camelizeIf;
 
-function underscoredIf(str, condition) {
-  let result = str;
-
-  if (condition) {
-    result = underscore(str);
-  }
-
-  return result;
-}
-exports.underscoredIf = underscoredIf;
-
-function isPrimitive(val) {
+export function isPrimitive(val: unknown): val is string | number | boolean {
   const type = typeof val;
   return type === 'string' || type === 'number' || type === 'boolean';
 }
-exports.isPrimitive = isPrimitive;
 
 // Same concept as _.merge, but don't overwrite properties that have already been assigned
-function mergeDefaults(a, b) {
-  return _.mergeWith(a, b, (objectValue, sourceValue) => {
+export function mergeDefaults<T>(a: T, b: T): T {
+  return mergeWith(a, b, (objectValue, sourceValue) => {
     // If it's an object, let _ handle it this time, we will be called again for each property
-    if (!_.isPlainObject(objectValue) && objectValue !== undefined) {
+    if (!isPlainObject(objectValue) && objectValue !== undefined) {
       // _.isNative includes a check for core-js and throws an error if present.
       // Depending on _baseIsNative bypasses the core-js check.
-      if (_.isFunction(objectValue) && baseIsNative(objectValue)) {
+      if (isFunction(objectValue) && baseIsNative(objectValue)) {
         return sourceValue || objectValue;
       }
       return objectValue;
     }
   });
 }
-exports.mergeDefaults = mergeDefaults;
 
 // An alternative to _.merge, which doesn't clone its arguments
 // Cloning is a bad idea because options arguments may contain references to sequelize
 // models - which again reference database libs which don't like to be cloned (in particular pg-native)
-function merge() {
+export function merge(...args: object[]): object {
   const result = {};
 
-  for (const obj of arguments) {
-    _.forOwn(obj, (value, key) => {
+  for (const obj of args) {
+    forOwn(obj, (value, key) => {
       if (value !== undefined) {
         if (!result[key]) {
           result[key] = value;
-        } else if (_.isPlainObject(value) && _.isPlainObject(result[key])) {
+        } else if (isPlainObject(value) && isPlainObject(result[key])) {
           result[key] = merge(result[key], value);
         } else if (Array.isArray(value) && Array.isArray(result[key])) {
           result[key] = value.concat(result[key]);
@@ -85,46 +72,40 @@ function merge() {
 
   return result;
 }
-exports.merge = merge;
 
-function spliceStr(str, index, count, add) {
+/**
+ * Takes the substring from 0 to `index` of `str` then concats `add` and `str[index+count:]`
+ */
+export function spliceStr(str: string, index: number, count: number, add: string): string {
   return str.slice(0, index) + add + str.slice(index + count);
 }
-exports.spliceStr = spliceStr;
 
-function camelize(str) {
+export function camelize(str: string): string {
   return str.trim().replace(/[-_\s]+(.)?/g, (match, c) => c.toUpperCase());
 }
-exports.camelize = camelize;
 
-function underscore(str) {
+export function underscore(str: string): string {
   return inflection.underscore(str);
 }
-exports.underscore = underscore;
 
-function singularize(str) {
+export function singularize(str: string): string {
   return inflection.singularize(str);
 }
-exports.singularize = singularize;
 
-function pluralize(str) {
+export function pluralize(str: string): string {
   return inflection.pluralize(str);
 }
-exports.pluralize = pluralize;
 
-function format(arr, dialect) {
+export function format(arr: string[], dialect: string): string {
   // Make a clone of the array because format modifies the passed args
-  return SqlString.format(arr[0], arr.slice(1), dialect);
+  return sqlFormat(arr[0], arr.slice(1), dialect);
 }
-exports.format = format;
 
-exports.formatNamedParameters = SqlString.formatNamedParameters;
-
-function cloneDeep(obj, onlyPlain) {
+export function cloneDeep<T extends object>(obj: T, onlyPlain?: boolean): T {
   obj = obj || {};
-  return _.cloneDeepWith(obj, elem => {
+  return cloneDeepWith(obj, elem => {
     // Do not try to customize cloning of arrays or POJOs
-    if (Array.isArray(elem) || _.isPlainObject(elem)) {
+    if (Array.isArray(elem) || isPlainObject(elem)) {
       return undefined;
     }
 
@@ -140,10 +121,9 @@ function cloneDeep(obj, onlyPlain) {
     }
   });
 }
-exports.cloneDeep = cloneDeep;
 
 /* Expand and normalize finder options */
-function mapFinderOptions(options, Model) {
+export function mapFinderOptions(options, Model) {
   if (options.attributes && Array.isArray(options.attributes)) {
     options.attributes = Model._injectDependentVirtualAttributes(options.attributes);
     options.attributes = options.attributes.filter(v => !Model._virtualAttributes.has(v));
@@ -153,10 +133,9 @@ function mapFinderOptions(options, Model) {
 
   return options;
 }
-exports.mapFinderOptions = mapFinderOptions;
 
 /* Used to map field names in attributes and where conditions */
-function mapOptionFieldNames(options, Model) {
+export function mapOptionFieldNames(options, Model) {
   if (Array.isArray(options.attributes)) {
     options.attributes = options.attributes.map(attr => {
       // Object lookups will force any variable to strings, we don't want that for special objects etc
@@ -169,15 +148,14 @@ function mapOptionFieldNames(options, Model) {
     });
   }
 
-  if (options.where && _.isPlainObject(options.where)) {
+  if (options.where && isPlainObject(options.where)) {
     options.where = mapWhereFieldNames(options.where, Model);
   }
 
   return options;
 }
-exports.mapOptionFieldNames = mapOptionFieldNames;
 
-function mapWhereFieldNames(attributes, Model) {
+export function mapWhereFieldNames(attributes, Model) {
   if (attributes) {
     getComplexKeys(attributes).forEach(attribute => {
       const rawAttribute = Model.rawAttributes[attribute];
@@ -188,7 +166,7 @@ function mapWhereFieldNames(attributes, Model) {
       }
 
       if (
-        _.isPlainObject(attributes[attribute]) &&
+        isPlainObject(attributes[attribute]) &&
         !(
           rawAttribute &&
           (rawAttribute.type instanceof DataTypes.HSTORE || rawAttribute.type instanceof DataTypes.JSON)
@@ -205,7 +183,7 @@ function mapWhereFieldNames(attributes, Model) {
 
       if (Array.isArray(attributes[attribute])) {
         attributes[attribute].forEach((where, index) => {
-          if (_.isPlainObject(where)) {
+          if (isPlainObject(where)) {
             attributes[attribute][index] = mapWhereFieldNames(where, Model);
           }
         });
@@ -215,10 +193,9 @@ function mapWhereFieldNames(attributes, Model) {
 
   return attributes;
 }
-exports.mapWhereFieldNames = mapWhereFieldNames;
 
 /* Used to map field names in values */
-function mapValueFieldNames(dataValues, fields, Model) {
+export function mapValueFieldNames(dataValues, fields: string[], Model): object {
   const values = {};
 
   for (const attr of fields) {
@@ -234,24 +211,23 @@ function mapValueFieldNames(dataValues, fields, Model) {
 
   return values;
 }
-exports.mapValueFieldNames = mapValueFieldNames;
 
-function isColString(value) {
+export function isColString(value: string): boolean {
   return typeof value === 'string' && value[0] === '$' && value[value.length - 1] === '$';
 }
-exports.isColString = isColString;
 
-function canTreatArrayAsAnd(arr) {
-  return arr.some(arg => _.isPlainObject(arg) || arg instanceof Where);
+export function canTreatArrayAsAnd(arr: unknown[]): boolean {
+  return arr.some(arg => isPlainObject(arg) || arg instanceof Where);
 }
-exports.canTreatArrayAsAnd = canTreatArrayAsAnd;
 
-function combineTableNames(tableName1, tableName2) {
+/**
+ * Creates a deterministic combined table name.
+ */
+export function combineTableNames(tableName1: string, tableName2: string): string {
   return tableName1.toLowerCase() < tableName2.toLowerCase() ? tableName1 + tableName2 : tableName2 + tableName1;
 }
-exports.combineTableNames = combineTableNames;
 
-function toDefaultValue(value, dialect) {
+export function toDefaultValue(value: unknown, dialect: string): unknown {
   if (typeof value === 'function') {
     const tmp = value();
     if (tmp instanceof DataTypes.ABSTRACT) {
@@ -271,22 +247,19 @@ function toDefaultValue(value, dialect) {
   if (Array.isArray(value)) {
     return value.slice();
   }
-  if (_.isPlainObject(value)) {
-    return { ...value };
+  if (isPlainObject(value)) {
+    return { ...(value as object) };
   }
   return value;
 }
-exports.toDefaultValue = toDefaultValue;
 
 /**
  * Determine if the default value provided exists and can be described
  * in a db schema using the DEFAULT directive.
  *
- * @param  {*} value Any default value.
- * @returns {boolean} yes / no.
  * @private
  */
-function defaultValueSchemable(value) {
+export function defaultValueSchemable(value: unknown): boolean {
   if (value === undefined) {
     return false;
   }
@@ -303,19 +276,23 @@ function defaultValueSchemable(value) {
 
   return typeof value !== 'function';
 }
-exports.defaultValueSchemable = defaultValueSchemable;
 
-function removeNullValuesFromHash(hash, omitNull, options) {
+export function removeNullValuesFromHash(hash, omitNull, options?: { allowNull?: string[] }): object {
   let result = hash;
 
-  options = options || {};
-  options.allowNull = options.allowNull || [];
+  options = {
+    allowNull: [],
+    ...options
+  };
 
   if (omitNull) {
-    const _hash = {};
+    const _hash: {
+      [key: string]: unknown;
+    } = {};
 
-    _.forIn(hash, (val, key) => {
-      if (options.allowNull.includes(key) || key.endsWith('Id') || (val !== null && val !== undefined)) {
+    forIn(hash, (val, key) => {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      if (options!.allowNull!.includes(key) || key.endsWith('Id') || (val !== null && val !== undefined)) {
         _hash[key] = val;
       }
     });
@@ -325,36 +302,29 @@ function removeNullValuesFromHash(hash, omitNull, options) {
 
   return result;
 }
-exports.removeNullValuesFromHash = removeNullValuesFromHash;
 
 const dialects = new Set(['mariadb', 'mysql', 'postgres', 'sqlite', 'mssql']);
 
-function now(dialect) {
+export function now(dialect: string): Date {
   const d = new Date();
   if (!dialects.has(dialect)) {
     d.setMilliseconds(0);
   }
   return d;
 }
-exports.now = now;
 
 // Note: Use the `quoteIdentifier()` and `escape()` methods on the
 // `QueryInterface` instead for more portable code.
 
-const TICK_CHAR = '`';
-exports.TICK_CHAR = TICK_CHAR;
+export const TICK_CHAR = '`';
 
-function addTicks(s, tickChar) {
-  tickChar = tickChar || TICK_CHAR;
+export function addTicks(s: string, tickChar: string = TICK_CHAR): string {
   return tickChar + removeTicks(s, tickChar) + tickChar;
 }
-exports.addTicks = addTicks;
 
-function removeTicks(s, tickChar) {
-  tickChar = tickChar || TICK_CHAR;
+export function removeTicks(s: string, tickChar: string = TICK_CHAR): string {
   return s.replace(new RegExp(tickChar, 'g'), '');
 }
-exports.removeTicks = removeTicks;
 
 /**
  * Receives a tree-like object and returns a plain object which depth is 1.
@@ -385,17 +355,17 @@ exports.removeTicks = removeTicks;
  * @returns {object} a flattened object
  * @private
  */
-function flattenObjectDeep(value) {
-  if (!_.isPlainObject(value)) return value;
+export function flattenObjectDeep(value: unknown): unknown {
+  if (!isPlainObject(value)) return value;
   const flattenedObj = {};
 
-  function flattenObject(obj, subPath) {
+  function flattenObject(obj: object, subPath?: string) {
     Object.keys(obj).forEach(key => {
       const pathToProperty = subPath ? `${subPath}.${key}` : key;
       if (typeof obj[key] === 'object' && obj[key] !== null) {
         flattenObject(obj[key], pathToProperty);
       } else {
-        flattenedObj[pathToProperty] = _.get(obj, key);
+        flattenedObj[pathToProperty] = get(obj, key);
       }
     });
     return flattenedObj;
@@ -403,7 +373,6 @@ function flattenObjectDeep(value) {
 
   return flattenObject(value, undefined);
 }
-exports.flattenObjectDeep = flattenObjectDeep;
 
 /**
  * Utility functions for representing SQL functions, and columns that should be escaped.
@@ -411,54 +380,45 @@ exports.flattenObjectDeep = flattenObjectDeep;
  *
  * @private
  */
-class SequelizeMethod {}
-exports.SequelizeMethod = SequelizeMethod;
+abstract class SequelizeMethod {}
 
-class Fn extends SequelizeMethod {
-  constructor(fn, args) {
+export class Fn extends SequelizeMethod {
+  constructor(public readonly fn: string, public readonly args: unknown[]) {
     super();
-    this.fn = fn;
-    this.args = args;
   }
-  clone() {
+
+  clone(): Fn {
     return new Fn(this.fn, this.args);
   }
 }
-exports.Fn = Fn;
 
-class Col extends SequelizeMethod {
-  constructor(col, ...args) {
+export class Col extends SequelizeMethod {
+  constructor(public readonly col: string) {
     super();
-    if (args.length > 0) {
-      col = args;
-    }
-    this.col = col;
   }
 }
-exports.Col = Col;
 
-class Cast extends SequelizeMethod {
-  constructor(val, type, json) {
+export class Cast extends SequelizeMethod {
+  public readonly type: string;
+  constructor(public readonly val: unknown, type: string, public readonly json = false) {
     super();
-    this.val = val;
     this.type = (type || '').trim();
-    this.json = json || false;
   }
 }
-exports.Cast = Cast;
 
-class Literal extends SequelizeMethod {
-  constructor(val) {
+export class Literal extends SequelizeMethod {
+  constructor(private val: string) {
     super();
-    this.val = val;
   }
 }
-exports.Literal = Literal;
 
-class Json extends SequelizeMethod {
-  constructor(conditionsOrPath, value) {
+export class Json extends SequelizeMethod {
+  public readonly conditions?: object;
+  public readonly path?: string;
+  public readonly value?: unknown;
+  constructor(conditionsOrPath: string | object, value: unknown) {
     super();
-    if (_.isObject(conditionsOrPath)) {
+    if (isObject(conditionsOrPath)) {
       this.conditions = conditionsOrPath;
     } else {
       this.path = conditionsOrPath;
@@ -468,48 +428,38 @@ class Json extends SequelizeMethod {
     }
   }
 }
-exports.Json = Json;
 
-class Where extends SequelizeMethod {
-  constructor(attribute, comparator, logic) {
+export class Where extends SequelizeMethod {
+  public readonly comparator: string;
+  public readonly logic: string;
+
+  constructor(public readonly attribute: string, comparator: string, logic: string) {
     super();
     if (logic === undefined) {
       logic = comparator;
       comparator = '=';
     }
 
-    this.attribute = attribute;
     this.comparator = comparator;
     this.logic = logic;
   }
 }
-exports.Where = Where;
 
 //Collection of helper methods to make it easier to work with symbol operators
 
 /**
- * getOperators
- *
- * @param  {object} obj
- * @returns {Array<symbol>} All operators properties of obj
  * @private
  */
-function getOperators(obj) {
+export function getOperators(obj: object): symbol[] {
   return Object.getOwnPropertySymbols(obj).filter(s => operatorsSet.has(s));
 }
-exports.getOperators = getOperators;
 
 /**
- * getComplexKeys
- *
- * @param  {object} obj
- * @returns {Array<string|symbol>} All keys including operators
  * @private
  */
-function getComplexKeys(obj) {
-  return getOperators(obj).concat(Object.keys(obj));
+export function getComplexKeys(obj: object): Array<symbol | string> {
+  return (getOperators(obj) as Array<string | symbol>).concat(Object.keys(obj));
 }
-exports.getComplexKeys = getComplexKeys;
 
 /**
  * getComplexSize
@@ -518,10 +468,9 @@ exports.getComplexKeys = getComplexKeys;
  * @returns {number}      Length of object properties including operators if obj is array returns its length
  * @private
  */
-function getComplexSize(obj) {
+export function getComplexSize(obj: object | unknown[]): number {
   return Array.isArray(obj) ? obj.length : getComplexKeys(obj).length;
 }
-exports.getComplexSize = getComplexSize;
 
 /**
  * Returns true if a where clause is empty, even with Symbols
@@ -530,88 +479,40 @@ exports.getComplexSize = getComplexSize;
  * @returns {boolean}
  * @private
  */
-function isWhereEmpty(obj) {
-  return !!obj && _.isEmpty(obj) && getOperators(obj).length === 0;
+export function isWhereEmpty(obj: object): boolean {
+  return !!obj && isEmpty(obj) && getOperators(obj).length === 0;
 }
-exports.isWhereEmpty = isWhereEmpty;
 
 /**
  * Returns ENUM name by joining table and column name
- *
- * @param {string} tableName
- * @param {string} columnName
- * @returns {string}
  * @private
  */
-function generateEnumName(tableName, columnName) {
+export function generateEnumName(tableName: string, columnName: string): string {
   return `enum_${tableName}_${columnName}`;
 }
-exports.generateEnumName = generateEnumName;
 
 /**
  * Returns an new Object which keys are camelized
- *
- * @param {object} obj
- * @returns {string}
  * @private
  */
-function camelizeObjectKeys(obj) {
-  const newObj = new Object();
+export function camelizeObjectKeys(obj: { [key: string]: string }): { [key: string]: string } {
+  const newObj: { [key: string]: string } = {};
   Object.keys(obj).forEach(key => {
     newObj[camelize(key)] = obj[key];
   });
   return newObj;
 }
-exports.camelizeObjectKeys = camelizeObjectKeys;
 
-/**
- * Assigns own and inherited enumerable string and symbol keyed properties of source
- * objects to the destination object.
- *
- * https://lodash.com/docs/4.17.4#defaults
- *
- * **Note:** This method mutates `object`.
- *
- * @param {object} object The destination object.
- * @param {...object} [sources] The source objects.
- * @returns {object} Returns `object`.
- * @private
- */
-function defaults(object, ...sources) {
-  object = Object(object);
-
-  sources.forEach(source => {
-    if (source) {
-      source = Object(source);
-
-      getComplexKeys(source).forEach(key => {
-        const value = object[key];
-        if (
-          value === undefined ||
-          (_.eq(value, Object.prototype[key]) && !Object.prototype.hasOwnProperty.call(object, key))
-        ) {
-          object[key] = source[key];
-        }
-      });
-    }
-  });
-
-  return object;
+interface NameIndex {
+  fields: Array<string | { name: string; attribute: string }>;
+  name?: string;
 }
-exports.defaults = defaults;
 
 /**
- *
- * @param {object} index
- * @param {Array}  index.fields
- * @param {string} [index.name]
- * @param {string|object} tableName
- *
- * @returns {object}
  * @private
  */
-function nameIndex(index, tableName) {
-  if (tableName.tableName) tableName = tableName.tableName;
+export function nameIndex(index: NameIndex, tableName: string | { tableName: string }): NameIndex {
+  if (typeof tableName === 'object' && tableName.tableName) tableName = tableName.tableName;
 
   if (!Object.prototype.hasOwnProperty.call(index, 'name')) {
     const fields = index.fields.map(field => (typeof field === 'string' ? field : field.name || field.attribute));
@@ -620,16 +521,11 @@ function nameIndex(index, tableName) {
 
   return index;
 }
-exports.nameIndex = nameIndex;
 
 /**
  * Checks if 2 arrays intersect.
- *
- * @param {Array} arr1
- * @param {Array} arr2
  * @private
  */
-function intersects(arr1, arr2) {
+export function intersects(arr1: unknown[], arr2: unknown[]): boolean {
   return arr1.some(v => arr2.includes(v));
 }
-exports.intersects = intersects;

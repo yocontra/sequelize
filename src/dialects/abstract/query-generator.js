@@ -11,7 +11,7 @@ const Association = require('../../associations/base');
 const BelongsTo = require('../../associations/belongs-to');
 const BelongsToMany = require('../../associations/belongs-to-many');
 const HasMany = require('../../associations/has-many');
-const Op = require('../../operators');
+const { Op } = require('../../operators');
 const sequelizeError = require('../../errors');
 const IndexHints = require('../../index-hints');
 

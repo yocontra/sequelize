@@ -7,7 +7,7 @@ const chai = require('chai'),
   dialect = Support.getTestDialect(),
   _ = require('lodash'),
   moment = require('moment'),
-  Op = require('../../../../lib/operators'),
+  { Op } = require('../../../../lib/operators'),
   QueryGenerator = require('../../../../lib/dialects/sqlite/query-generator');
 
 if (dialect === 'sqlite') {

@@ -1,5 +1,5 @@
 const _ = require('lodash');
-const Op = require('../../../operators');
+const { Op } = require('../../../operators');
 const Utils = require('../../../utils');
 
 const OperatorHelpers = {

@@ -43,7 +43,7 @@
  * @property placeholder
  * @property join
  */
-const Op = {
+export const Op = {
   eq: Symbol.for('eq'),
   ne: Symbol.for('ne'),
   gte: Symbol.for('gte'),
@@ -84,5 +84,3 @@ const Op = {
   placeholder: Symbol.for('placeholder'),
   join: Symbol.for('join')
 };
-
-module.exports = Op;

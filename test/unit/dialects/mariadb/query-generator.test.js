@@ -5,7 +5,7 @@ const chai = require('chai'),
   Support = require('../../support'),
   dialect = Support.getTestDialect(),
   _ = require('lodash'),
-  Op = require('../../../../lib/operators'),
+  { Op } = require('../../../../lib/operators'),
   IndexHints = require('../../../../lib/index-hints'),
   QueryGenerator = require('../../../../lib/dialects/mariadb/query-generator');
 
