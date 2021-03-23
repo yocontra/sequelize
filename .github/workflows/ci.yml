@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [10, 12]
+        node-version: [10, 12, 14]
     name: SQLite (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     env:
@@ -56,7 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [10, 12]
+        node-version: [10, 12, 14]
         postgres-version: [9.5, 10] # Does not work with 12
         minify-aliases: [true, false]
         native: [true, false]
@@ -93,28 +93,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: MySQL 5.7
-            image: mysql:5.7
-            dialect: mysql
-            node-version: 10
-          - name: MySQL 5.7
-            image: mysql:5.7
-            dialect: mysql
-            node-version: 12
-          - name: MariaDB 10.3
-            image: mariadb:10.3
-            dialect: mariadb
-            node-version: 10
-          - name: MariaDB 10.3
-            image: mariadb:10.3
-            dialect: mariadb
-            node-version: 12
-    name: ${{ matrix.name }} (Node ${{ matrix.node-version }})
+        db:
+          - '{ name: "MySQL 5.7", image: "mysql:5.7", dialect: "mysql" }'
+          - '{ name: "MariaDB 10.3", image: "mariadb:10.3", dialect: "mariadb" }'
+        node_version: [10, 12, 14]
+    name: ${{ fromJson(matrix.db).name }} (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     services:
       mysql:
-        image: ${{ matrix.image }}
+        image: ${{ fromJson(matrix.db).image }}
         env:
           MYSQL_DATABASE: sequelize_test
           MYSQL_USER: sequelize_test
@@ -124,7 +111,7 @@ jobs:
           - 3306:3306
         options: --health-cmd="mysqladmin -usequelize_test -psequelize_test status" --health-interval 10s --health-timeout 5s --health-retries 5 --tmpfs /var/lib/mysql:rw
     env:
-      DIALECT: ${{ matrix.dialect }}
+      DIALECT: ${{ fromJson(matrix.db).dialect }}
     steps:
       - run: mysql --host 127.0.0.1 --port 3306 -uroot -psequelize_test -e "GRANT ALL ON *.* TO 'sequelize_test'@'%' with grant option; FLUSH PRIVILEGES;"
       - uses: actions/checkout@v2
@@ -140,7 +127,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [10, 12]
+        node-version: [10, 12, 14]
         mssql-version: [2017, 2019]
     name: MSSQL ${{ matrix.mssql-version }} (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
